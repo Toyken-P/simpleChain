@@ -85,7 +85,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 		log.Panic("ERROR: Not enough funds")
 	}
 
-	// Build a list of inputs
+	// 构建 inputs
 	for txid, outs := range validOutputs {
 		txID, err := hex.DecodeString(txid)
 		if err != nil {
@@ -98,7 +98,7 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 		}
 	}
 
-	// Build a list of outputs
+	// 构建 outputs
 	outputs = append(outputs, TXOutput{amount, to})
 	if acc > amount {
 		outputs = append(outputs, TXOutput{acc - amount, from}) // a change

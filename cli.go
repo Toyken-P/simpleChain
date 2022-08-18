@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
+	"time"
 )
 
 // CLI responsible for processing command line arguments
@@ -17,6 +17,7 @@ func (cli *CLI) createBlockchain(address string) {
 	fmt.Println("Done!")
 }
 
+// 获取账户余额
 func (cli *CLI) getBalance(address string) {
 	bc := NewBlockchain(address)
 	defer bc.db.Close()
@@ -55,11 +56,26 @@ func (cli *CLI) printChain() {
 
 	for {
 		block := bci.Next()
-
-		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
+		fmt.Printf("Height: %d\n", block.Height)
+		fmt.Printf("PrevBlockHash: %x\n", block.PrevBlockHash)
+		fmt.Printf("Timestamp: %s\n", time.Unix(block.Timestamp, 0).Format("2006-01-02 03:04:05 PM"))
 		fmt.Printf("Hash: %x\n", block.Hash)
-		pow := NewProofOfWork(block)
-		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
+		fmt.Printf("Nonce: %d\n", block.Nonce)
+		fmt.Println("Txs:")
+		for _, tx := range block.Transactions {
+			fmt.Printf("tx.TxHash=%x\n", tx.ID)
+			fmt.Printf("Vins:")
+			for _, in := range tx.Vin {
+				fmt.Printf("{in.TxHash:%x", in.Txid)
+				fmt.Printf(", in.Vout:%d", in.Vout)
+				fmt.Printf(", in.ScriptSig:%s}\n", in.ScriptSig)
+			}
+			fmt.Printf("Vouts:")
+			for _, out := range tx.Vout {
+				fmt.Printf("{out.Value:%d", out.Value)
+				fmt.Printf(", out.ScriptPubKey:%s}\n", out.ScriptPubKey)
+			}
+		}
 		fmt.Println()
 
 		if len(block.PrevBlockHash) == 0 {

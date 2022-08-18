@@ -1,36 +1,12 @@
 # Blockchain in Go
 
-A blockchain implementation in Go, as described in these articles:
-
-1. [Basic Prototype](https://jeiwan.net/posts/building-blockchain-in-go-part-1/)
-2. [Proof-of-Work](https://jeiwan.net/posts/building-blockchain-in-go-part-2/)
-3. [Persistence and CLI](https://jeiwan.net/posts/building-blockchain-in-go-part-3/)
-4. [Transactions 1](https://jeiwan.net/posts/building-blockchain-in-go-part-4/)
-5. [Addresses](https://jeiwan.net/posts/building-blockchain-in-go-part-5/)
-6. [Transactions 2](https://jeiwan.net/posts/building-blockchain-in-go-part-6/)
-7. [Network](https://jeiwan.net/posts/building-blockchain-in-go-part-7/)
-
 ## 代码注释
 ### block.go
-```go
-strconv.FormatInt   // 将数值变量转换为指定进制后变换为字符串
-bytes.Join  // 将传入的[][]byte中的各[]byte插入指定字符后拼接，返还为一个[]byte
-// 每个block至少包含一个交易
-type Block struct {
-Timestamp     int64
-Transactions  []*Transaction
-PrevBlockHash []byte
-Hash          []byte
-Nonce         int
-}
-```
 
 ### proofwork.go
 ```go
 target.Lsh(target, uint(256-targetBits))  // 将target的值左移指定位
 prepareData // 将数据装入区块准备计算hash
-
-
 ```
 
 ### blockchain.go
@@ -87,3 +63,24 @@ func NewCoinbaseTX(to, data string) *Transaction{}
 // 查找包含UTXO的交易,即未被任何TXI引用的TXO
 func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction{}
 ```
+
+### wallet.go
+根据公钥生成比特币地址
+1.使用 RIPEMD160(SHA256(PubKey))对公钥进行两次哈希，生成pubKeyHash
+2.追加版本信息到pubKeyHash之前，生成versionedPayload，此时versionedPayload=version+pubKeyHash
+3.使用SHA256(SHA256(versionedPayload))进行两次哈希得到hash值，取该值的前n个字节生成checksum
+4.将checksum追加到versionedPayload之后，生成编码前的地址，此时地址= version+pubKeyHash+checksum
+5.使用Base58对version+pubKeyHash+checksum编码生成最终的地址。
+```go
+
+```
+
+
+
+# Part 4 图像说明
+## 区块数据结构
+![image-20220817144655216](D:\code\simpleChain\README.assets\image-20220817144655216.png)
+
+## 地址生成
+
+![比特币地址生成](D:\code\simpleChain\README.assets\比特币地址生成.png)

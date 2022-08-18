@@ -22,20 +22,23 @@ type Blockchain struct {
 // MineBlock mines a new block with the provided transactions
 func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
-
+	var block *Block
+	// 打开数据库
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		lastHash = b.Get([]byte("l"))
-
+		blockBytes := b.Get(lastHash)
+		block = DeserializeBlock(blockBytes)
 		return nil
 	})
 
 	if err != nil {
 		log.Panic(err)
 	}
+	// 建立新区块
+	newBlock := NewBlock(transactions, lastHash, block.Height+1)
 
-	newBlock := NewBlock(transactions, lastHash)
-
+	// 存储到数据库
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		err := b.Put(newBlock.Hash, newBlock.Serialize())
@@ -54,9 +57,10 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	})
 }
 
-// FindUnspentTransactions returns a list of transactions containing unspent outputs
+// FindUnspentTransactions 返回包含address未花费output的transaction
 func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 	var unspentTXs []Transaction
+	// spentTXOs[Transaction.ID] = []索引
 	spentTXOs := make(map[string][]int)
 	bci := bc.Iterator()
 
@@ -68,8 +72,9 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 
 		Outputs:
 			for outIdx, out := range tx.Vout {
-				// Was the output spent?
+				// 对应transaction不为空则存在调用了address的TXI
 				if spentTXOs[txID] != nil {
+					// 对于已经被TXI引用的TXO，不做处理；
 					for _, spentOut := range spentTXOs[txID] {
 						if spentOut == outIdx {
 							continue Outputs
@@ -83,6 +88,7 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 			}
 
 			if tx.IsCoinbase() == false {
+				// 若TXI调用了address的TXO，则记录到spentTXOs中
 				for _, in := range tx.Vin {
 					if in.CanUnlockOutputWith(address) {
 						inTxID := hex.EncodeToString(in.Txid)
@@ -100,7 +106,7 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 	return unspentTXs
 }
 
-// FindUTXO finds and returns all unspent transaction outputs
+// FindUTXO 返回所有未花费 transaction outputs
 func (bc *Blockchain) FindUTXO(address string) []TXOutput {
 	var UTXOs []TXOutput
 	unspentTransactions := bc.FindUnspentTransactions(address)
@@ -169,10 +175,6 @@ func NewBlockchain(address string) *Blockchain {
 		return nil
 	})
 
-	if err != nil {
-		log.Panic(err)
-	}
-
 	bc := Blockchain{tip, db}
 
 	return &bc
@@ -185,6 +187,7 @@ func CreateBlockchain(address string) *Blockchain {
 		os.Exit(1)
 	}
 
+	// 创建或打开数据库
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
 	if err != nil {
