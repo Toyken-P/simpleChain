@@ -40,21 +40,21 @@ coinbase交易的TXI不会引用任何TXO，而会直接生成一个TXO奖励给
 ```go
 // ID 为transaction本身编码后的hash值
 type Transaction struct {
-ID   []byte
-Vin  []TXInput
-Vout []TXOutput
+    ID   []byte
+    Vin  []TXInput
+    Vout []TXOutput
 }
 // TXO 收款方，存储货币信息（TXOutput的Value字段），同时通过一个puzzle进行锁定，puzzle存放在ScriptPubKey字段中。
 // 一个TXO作为一个整体使用，是**不可分割**的
 type TXOutput struct {
-Value        int
-ScriptPubKey string
+    Value        int
+    ScriptPubKey string
 }
 // TXI 付款方，与之前的某个TXO相关联：Txid存储输出所属的交易的ID，Vout存储输出的序号（一个交易可以包括多个TXO）
 type TXInput struct {
-Txid      []byte
-Vout      int
-ScriptSig string
+    Txid      []byte
+    Vout      int
+    ScriptSig string
 }
 
 // coinbase仅有一个TXI，该TXI的Txid为空，Vout设置为-1，同时ScriptSig中存储的不是脚本，而仅仅是一个普通字符串。
@@ -72,15 +72,27 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction{}
 4.将checksum追加到versionedPayload之后，生成编码前的地址，此时地址= version+pubKeyHash+checksum
 5.使用Base58对version+pubKeyHash+checksum编码生成最终的地址。
 ```go
+func newKeyPair() (ecdsa.PrivateKey, []byte) {
+	// 生成椭圆曲线
+    curve := elliptic.P256()
+	// 由椭圆曲线和随机数生成私钥
+    private, err := ecdsa.GenerateKey(curve, rand.Reader)
+    if err != nil {
+        log.Panic(err)
+    }
+    // 公钥是曲线上的点集合，由X,Y坐标混合而成
+    pubKey := append(private.PublicKey.X.Bytes(), private.PublicKey.Y.Bytes()...)
 
+    return *private, pubKey
+}
 ```
 
 
 
 # Part 4 图像说明
 ## 区块数据结构
-![image-20220817144655216](D:\code\simpleChain\README.assets\image-20220817144655216.png)
+![block_struct](C:\Users\PHC\code\simpleChain\README.assets\block_struct.png)
 
 ## 地址生成
 
-![比特币地址生成](D:\code\simpleChain\README.assets\比特币地址生成.png)
+![address_gen](C:\Users\PHC\code\simpleChain\README.assets\address_gen.png)
