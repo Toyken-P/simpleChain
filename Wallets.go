@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-// Wallets stores a collection of wallets
+// Wallets 存储 wallet 集合
 type Wallets struct {
 	Wallets map[string]*Wallet
 }
@@ -25,7 +25,7 @@ func NewWallets() (*Wallets, error) {
 	return &wallets, err
 }
 
-// CreateWallet adds a Wallet to Wallets
+// CreateWallet 将 Wallet 加入 Wallets
 func (ws *Wallets) CreateWallet() string {
 	wallet := NewWallet()
 	address := fmt.Sprintf("%s", wallet.GetAddress())
@@ -35,7 +35,7 @@ func (ws *Wallets) CreateWallet() string {
 	return address
 }
 
-// GetAddresses returns an array of addresses stored in the wallet file
+// GetAddresses 返回 wallet 文件中 address 的数组
 func (ws *Wallets) GetAddresses() []string {
 	var addresses []string
 
@@ -46,12 +46,12 @@ func (ws *Wallets) GetAddresses() []string {
 	return addresses
 }
 
-// GetWallet returns a Wallet by its address
+// GetWallet 返回 Wallet 的 address
 func (ws Wallets) GetWallet(address string) Wallet {
 	return *ws.Wallets[address]
 }
 
-// LoadFromFile loads wallets from the file
+// LoadFromFile 从文件中载入 wallets
 func (ws *Wallets) LoadFromFile() error {
 	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
 		return err
@@ -75,7 +75,7 @@ func (ws *Wallets) LoadFromFile() error {
 	return nil
 }
 
-// SaveToFile saves wallets to a file
+// SaveToFile 把 wallets 存入文件
 func (ws Wallets) SaveToFile() {
 	var content bytes.Buffer
 

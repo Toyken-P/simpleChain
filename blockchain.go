@@ -22,26 +22,30 @@ type Blockchain struct {
 	db  *bolt.DB
 }
 
-// MineBlock mines a new block with the provided transactions
+// MineBlock 为提供的 transactions 挖掘新区块
 func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
 	var block *Block
-	// 打开数据库
+	for _, tx := range transactions {
+		if bc.VerifyTransaction(tx) != true {
+			log.Panic("ERROR: Invalid transaction from MineBlock")
+		}
+	}
+
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		lastHash = b.Get([]byte("l"))
 		blockBytes := b.Get(lastHash)
 		block = DeserializeBlock(blockBytes)
+
 		return nil
 	})
-
 	if err != nil {
 		log.Panic(err)
 	}
-	// 建立新区块
+
 	newBlock := NewBlock(transactions, lastHash, block.Height+1)
 
-	// 存储到数据库
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		err := b.Put(newBlock.Hash, newBlock.Serialize())
@@ -58,6 +62,9 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 
 		return nil
 	})
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 // FindUnspentTransactions 返回包含address未花费output的transaction
@@ -263,4 +270,19 @@ func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey)
 	}
 
 	tx.Sign(privKey, prevTXs)
+}
+
+// VerifyTransaction 验证 Transaction 中 inputs 的签名
+func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	prevTXs := make(map[string]Transaction)
+
+	for _, vin := range tx.Vin {
+		prevTX, err := bc.FindTransaction(vin.Txid)
+		if err != nil {
+			log.Panic(err, "from VerifyTransaction")
+		}
+		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
+
+	return tx.Verify(prevTXs)
 }

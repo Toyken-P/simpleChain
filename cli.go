@@ -12,6 +12,9 @@ import (
 type CLI struct{}
 
 func (cli *CLI) createBlockchain(address string) {
+	if !ValidateAddress(address) {
+		log.Panic("ERROR: Address is not valid")
+	}
 	bc := CreateBlockchain(address)
 	bc.db.Close()
 	fmt.Println("Done!")
@@ -23,7 +26,9 @@ func (cli *CLI) getBalance(address string) {
 	defer bc.db.Close()
 
 	balance := 0
-	UTXOs := bc.FindUTXO(address)
+	pubKeyHash := Base58Decode([]byte(address))
+	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+	UTXOs := bc.FindUTXO(pubKeyHash)
 
 	for _, out := range UTXOs {
 		balance += out.Value
@@ -32,10 +37,33 @@ func (cli *CLI) getBalance(address string) {
 	fmt.Printf("Balance of '%s': %d\n", address, balance)
 }
 
+// 创建钱包
+func (cli *CLI) createWallet() {
+	wallets, _ := NewWallets()
+	address := wallets.CreateWallet()
+	wallets.SaveToFile()
+
+	fmt.Printf("Your new address: %s\n", address)
+}
+
+func (cli *CLI) listAddress() {
+	wallets, err := NewWallets()
+	if err != nil {
+		log.Panic(err)
+	}
+	addresses := wallets.GetAddresses()
+
+	for _, address := range addresses {
+		fmt.Println(address)
+	}
+}
+
 func (cli *CLI) printUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  getbalance -address ADDRESS - Get balance of ADDRESS")
 	fmt.Println("  createblockchain -address ADDRESS - Create a blockchain and send genesis block reward to ADDRESS")
+	fmt.Println("  createwallet - Generates a new key-pair and saves it into the wallet file")
+	fmt.Println("  getbalance -address ADDRESS - Get balance of ADDRESS")
+	fmt.Println("  listaddresses - Lists all addresses from the wallet file")
 	fmt.Println("  printchain - Print all the blocks of the blockchain")
 	fmt.Println("  send -from FROM -to TO -amount AMOUNT - Send AMOUNT of coins from FROM address to TO")
 }
@@ -48,7 +76,6 @@ func (cli *CLI) validateArgs() {
 }
 
 func (cli *CLI) printChain() {
-	// TODO: Fix this
 	bc := NewBlockchain("")
 	defer bc.db.Close()
 
@@ -56,27 +83,15 @@ func (cli *CLI) printChain() {
 
 	for {
 		block := bci.Next()
-		fmt.Printf("Height: %d\n", block.Height)
+
+		fmt.Printf("============ Block %d: %x============\n", block.Height, block.Hash)
 		fmt.Printf("PrevBlockHash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Timestamp: %s\n", time.Unix(block.Timestamp, 0).Format("2006-01-02 03:04:05 PM"))
-		fmt.Printf("Hash: %x\n", block.Hash)
 		fmt.Printf("Nonce: %d\n", block.Nonce)
-		fmt.Println("Txs:")
 		for _, tx := range block.Transactions {
-			fmt.Printf("tx.TxHash=%x\n", tx.ID)
-			fmt.Printf("Vins:")
-			for _, in := range tx.Vin {
-				fmt.Printf("{in.TxHash:%x", in.Txid)
-				fmt.Printf(", in.Vout:%d", in.Vout)
-				fmt.Printf(", in.ScriptSig:%s}\n", in.ScriptSig)
-			}
-			fmt.Printf("Vouts:")
-			for _, out := range tx.Vout {
-				fmt.Printf("{out.Value:%d", out.Value)
-				fmt.Printf(", out.ScriptPubKey:%s}\n", out.ScriptPubKey)
-			}
+			fmt.Println(tx)
 		}
-		fmt.Println()
+		fmt.Printf("\n\n")
 
 		if len(block.PrevBlockHash) == 0 {
 			break
@@ -85,6 +100,12 @@ func (cli *CLI) printChain() {
 }
 
 func (cli *CLI) send(from, to string, amount int) {
+	if !ValidateAddress(from) {
+		log.Panic("ERROR: Sender address is not valid")
+	}
+	if !ValidateAddress(to) {
+		log.Panic("ERROR: Recipient address is not valid")
+	}
 	bc := NewBlockchain(from)
 	defer bc.db.Close()
 
@@ -99,6 +120,8 @@ func (cli *CLI) Run() {
 
 	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
+	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
+	listAddressCmd := flag.NewFlagSet("listAddress", flag.ExitOnError)
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 
@@ -129,6 +152,16 @@ func (cli *CLI) Run() {
 		if err != nil {
 			log.Panic(err)
 		}
+	case "createwallet":
+		err := createWalletCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "listAddress":
+		err := listAddressCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
 	default:
 		cli.printUsage()
 		os.Exit(1)
@@ -152,6 +185,14 @@ func (cli *CLI) Run() {
 
 	if printChainCmd.Parsed() {
 		cli.printChain()
+	}
+
+	if createWalletCmd.Parsed() {
+		cli.createWallet()
+	}
+
+	if listAddressCmd.Parsed() {
+		cli.listAddress()
 	}
 
 	if sendCmd.Parsed() {
