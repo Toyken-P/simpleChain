@@ -1,98 +1,124 @@
-# Blockchain in Go
+# 代码注解
 
-## 代码注释
-### block.go
+## 区块(block)
 
-### proofwork.go
+### 区块结构
+
+实际是区块头内容
+
 ```go
-target.Lsh(target, uint(256-targetBits))  // 将target的值左移指定位
-prepareData // 将数据装入区块准备计算hash
-```
-
-### blockchain.go
-tip：最新区块的hash，用于指向数据库中最新区块的位置
-```go
-// 为避免运行过程中数据库被反复打开，因此在blockchain存储已打开的数据库链接
-type Blockchain struct {
-	blocks []*Block
-	db     *bolt.DB
+type Block struct {
+	Height        int64
+	Timestamp     int64
+	Transactions  []*Transaction
+	PrevBlockHash []byte
+	Hash          []byte
+	Nonce         int
 }
-// bucket是与键值对的集合。
-// 使用只读事务获取当前数据库中最新block的hash值
-err := bc.db.View(func(tx *bolt.Tx) error {
-b := tx.Bucket([]byte(blocksBucket))
-lastHash = b.Get([]byte("l"))
-
-// 将区块hash作为key，序列化后的内容作为value
-err := b.Put(newBlock.Hash, newBlock.Serialize())
 ```
 
-### blockchain_iterator.go
-我们想按照block被加入的顺序来输出blockchain内容，但bucket中的key是按照字节序的顺序来存储的。
-此外，我们不想将所有block全部加载到内存，因此将通过迭代器来逐个遍历block
+### 区块生成
 
-一开始迭代器指向blockchain的tip，意味着将从顶到底、从新到旧的遍历blockchain。
-选择tip就好比blockchain投票。Blockchain可能有多个分支，最长的那个分支被当做主分支。
-获得tip后，就可以重建整个blockchain并且得到blockchain的长度。因此，某种程度上可以说tip是blockchain的标识。
-
-### transaction.go
-coinbase交易的TXI不会引用任何TXO，而会直接生成一个TXO奖励给矿工
 ```go
-// ID 为transaction本身编码后的hash值
+// 区块生成，构造 NewProofOfWork 并调用其方法挖掘区块
+func NewBlock(transactions []*Transaction, prevBlockHash []byte, height int64) *Block
+// 创世区块生成，调用 NewBlock 函数
+func NewGenesisBlock(coinbase *Transaction) *Block
+```
+
+### 区块编码
+
+```go
+// 使用 gob 对区块编码和解码
+func (b *Block) Serialize() []byte
+func DeserializeBlock(d []byte) *Block
+```
+
+
+
+## 交易(Transaction)
+
+### 交易结构
+
+```go
 type Transaction struct {
-    ID   []byte
-    Vin  []TXInput
-    Vout []TXOutput
+	ID   []byte
+	Vin  []TXInput
+	Vout []TXOutput
 }
-// TXO 收款方，存储货币信息（TXOutput的Value字段），同时通过一个puzzle进行锁定，puzzle存放在ScriptPubKey字段中。
-// 一个TXO作为一个整体使用，是**不可分割**的
-type TXOutput struct {
-    Value        int
-    ScriptPubKey string
-}
-// TXI 付款方，与之前的某个TXO相关联：Txid存储输出所属的交易的ID，Vout存储输出的序号（一个交易可以包括多个TXO）
-type TXInput struct {
-    Txid      []byte
-    Vout      int
-    ScriptSig string
-}
-
-// coinbase仅有一个TXI，该TXI的Txid为空，Vout设置为-1，同时ScriptSig中存储的不是脚本，而仅仅是一个普通字符串。
-func NewCoinbaseTX(to, data string) *Transaction{}
-
-// 查找包含UTXO的交易,即未被任何TXI引用的TXO
-func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction{}
 ```
 
-### wallet.go
-根据公钥生成比特币地址
-1.使用 RIPEMD160(SHA256(PubKey))对公钥进行两次哈希，生成pubKeyHash
-2.追加版本信息到pubKeyHash之前，生成versionedPayload，此时versionedPayload=version+pubKeyHash
-3.使用SHA256(SHA256(versionedPayload))进行两次哈希得到hash值，取该值的前n个字节生成checksum
-4.将checksum追加到versionedPayload之后，生成编码前的地址，此时地址= version+pubKeyHash+checksum
-5.使用Base58对version+pubKeyHash+checksum编码生成最终的地址。
+### 交易生成
+
 ```go
-func newKeyPair() (ecdsa.PrivateKey, []byte) {
-	// 生成椭圆曲线
-    curve := elliptic.P256()
-	// 由椭圆曲线和随机数生成私钥
-    private, err := ecdsa.GenerateKey(curve, rand.Reader)
-    if err != nil {
-        log.Panic(err)
-    }
-    // 公钥是曲线上的点集合，由X,Y坐标混合而成
-    pubKey := append(private.PublicKey.X.Bytes(), private.PublicKey.Y.Bytes()...)
+// 挖矿奖励交易(CoinbaseTX)，input 为空，调用 NewTXOutput 生成 output
+func NewCoinbaseTX(to, data string) *Transaction
+// 交易生成
+// 1.根据 address 找到钱包对应公钥 PublicKey
+// 2.调用 FindSpendableOutputs 找到满足交易额的未花费 Outputs
+// 3.构造 inputs 和 outputs
+// 4.调用 SignTransaction 对交易签名
+func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transaction
+```
 
-    return *private, pubKey
+### 交易处理
+
+```go
+// 对 Transaction 中的每个TXI进行单独地签名
+func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction)
+```
+
+### 交易查找
+
+```go
+// 遍历所有 block，返回包含 UTXO 的 transaction
+func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction
+// 新交易创建时，调用 FindUnspentTransactions 找到满足要求的可以供消费的交易
+func (bc *Blockchain) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int)
+// 调用 FindUnspentTransactions 返回指定公钥hash值的所有UTXO，用于计算余额
+func (bc *Blockchain) FindUTXO(pubKeyHash []byte) []TXOutput
+// 根据交易ID遍历所有 block 查找交易
+func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error)
+```
+
+
+
+## 输入(TXInput) 和输出(TXOutput)
+
+### 构造
+
+```go
+type TXInput struct {
+	Txid      []byte
+	Vout      int
+	Signature []byte
+	PubKey    []byte
+}
+
+type TXOutput struct {
+	Value      int
+	PubKeyHash []byte
 }
 ```
 
 
 
-# Part 4 图像说明
-## 区块数据结构
-![block_struct](C:\Users\PHC\code\simpleChain\README.assets\block_struct.png)
+### TXInput方法
 
-## 地址生成
+```go
+func (in *TXInput) UsesKey(pubKeyHash []byte) bool
+```
 
-![address_gen](C:\Users\PHC\code\simpleChain\README.assets\address_gen.png)
+
+
+### TXOutput方法
+
+```go
+// 为output进行签名，设置为Public Key Hash
+func (out *TXOutput) Lock(address []byte)
+// 检查output的PubKeyHash是否和用户的pubKeyHash一致
+func (out *TXOutput) IsLockedWithKey(pubKeyHash []byte) bool
+// 创建 TXOutput,调用 Lock 方法签名
+func NewTXOutput(value int, address string) *TXOutput
+```
+

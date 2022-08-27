@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// CLI responsible for processing command line arguments
 type CLI struct{}
 
 func (cli *CLI) createBlockchain(address string) {
@@ -20,9 +19,8 @@ func (cli *CLI) createBlockchain(address string) {
 	fmt.Println("Done!")
 }
 
-// 获取账户余额
 func (cli *CLI) getBalance(address string) {
-	bc := NewBlockchain(address)
+	bc := NewBlockchain()
 	defer bc.db.Close()
 
 	balance := 0
@@ -37,7 +35,6 @@ func (cli *CLI) getBalance(address string) {
 	fmt.Printf("Balance of '%s': %d\n", address, balance)
 }
 
-// 创建钱包
 func (cli *CLI) createWallet() {
 	wallets, _ := NewWallets()
 	address := wallets.CreateWallet()
@@ -76,7 +73,7 @@ func (cli *CLI) validateArgs() {
 }
 
 func (cli *CLI) printChain() {
-	bc := NewBlockchain("")
+	bc := NewBlockchain()
 	defer bc.db.Close()
 
 	bci := bc.Iterator()
@@ -106,7 +103,7 @@ func (cli *CLI) send(from, to string, amount int) {
 	if !ValidateAddress(to) {
 		log.Panic("ERROR: Recipient address is not valid")
 	}
-	bc := NewBlockchain(from)
+	bc := NewBlockchain()
 	defer bc.db.Close()
 
 	tx := NewUTXOTransaction(from, to, amount, bc)

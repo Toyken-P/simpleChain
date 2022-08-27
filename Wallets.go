@@ -15,7 +15,7 @@ type Wallets struct {
 	Wallets map[string]*Wallet
 }
 
-// NewWallets creates Wallets and fills it from a file if it exists
+// NewWallets 创建 Wallets 钱包集合并读取本地文件获取钱包信息
 func NewWallets() (*Wallets, error) {
 	wallets := Wallets{}
 	wallets.Wallets = make(map[string]*Wallet)
@@ -25,7 +25,7 @@ func NewWallets() (*Wallets, error) {
 	return &wallets, err
 }
 
-// CreateWallet 将 Wallet 加入 Wallets
+// CreateWallet 新建 Wallet 并加入 Wallets
 func (ws *Wallets) CreateWallet() string {
 	wallet := NewWallet()
 	address := fmt.Sprintf("%s", wallet.GetAddress())
