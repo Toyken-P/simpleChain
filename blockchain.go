@@ -23,12 +23,12 @@ type Blockchain struct {
 }
 
 // MineBlock 为提供的 transactions 挖掘新区块
-func (bc *Blockchain) MineBlock(transactions []*Transaction) {
+func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	var lastHash []byte
 	var block *Block
 	for _, tx := range transactions {
 		if bc.VerifyTransaction(tx) != true {
-			log.Panic("ERROR: Invalid transaction from MineBlock")
+			log.Panic("ERROR: Invalid transaction")
 		}
 	}
 
@@ -65,6 +65,8 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	if err != nil {
 		log.Panic(err)
 	}
+
+	return newBlock
 }
 
 // FindUnspentTransactions 返回包含address未花费output的transaction
@@ -117,19 +119,47 @@ func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
 }
 
 // FindUTXO 返回所有未花费 transaction outputs
-func (bc *Blockchain) FindUTXO(pubKeyHash []byte) []TXOutput {
-	var UTXOs []TXOutput
-	unspentTransactions := bc.FindUnspentTransactions(pubKeyHash)
+func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
+	UTXO := make(map[string]TXOutputs)
+	spentTXOs := make(map[string][]int)
+	bci := bc.Iterator()
 
-	for _, tx := range unspentTransactions {
-		for _, out := range tx.Vout {
-			if out.IsLockedWithKey(pubKeyHash) {
-				UTXOs = append(UTXOs, out)
+	for {
+		block := bci.Next()
+
+		for _, tx := range block.Transactions {
+			txID := hex.EncodeToString(tx.ID)
+
+		Outputs:
+			for outIdx, out := range tx.Vout {
+				// 判断 output 是否被花费
+				if spentTXOs[txID] != nil {
+					for _, spentOutIdx := range spentTXOs[txID] {
+						if spentOutIdx == outIdx {
+							continue Outputs
+						}
+					}
+				}
+
+				outs := UTXO[txID]
+				outs.Outputs = append(outs.Outputs, out)
+				UTXO[txID] = outs
 			}
+
+			if tx.IsCoinbase() == false {
+				for _, in := range tx.Vin {
+					inTxID := hex.EncodeToString(in.Txid)
+					spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
+				}
+			}
+		}
+
+		if len(block.PrevBlockHash) == 0 {
+			break
 		}
 	}
 
-	return UTXOs
+	return UTXO
 }
 
 // FindSpendableOutputs finds and returns unspent outputs to reference in inputs
@@ -274,12 +304,16 @@ func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey)
 
 // VerifyTransaction 验证 Transaction 中 inputs 的签名
 func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	if tx.IsCoinbase() {
+		return true
+	}
+
 	prevTXs := make(map[string]Transaction)
 
 	for _, vin := range tx.Vin {
 		prevTX, err := bc.FindTransaction(vin.Txid)
 		if err != nil {
-			log.Panic(err, "from VerifyTransaction")
+			log.Panic(err)
 		}
 		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
 	}

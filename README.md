@@ -76,7 +76,7 @@ func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction
 // 新交易创建时，调用 FindUnspentTransactions 找到满足要求的可以供消费的交易
 func (bc *Blockchain) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int)
 // 调用 FindUnspentTransactions 返回指定公钥hash值的所有UTXO，用于计算余额
-func (bc *Blockchain) FindUTXO(pubKeyHash []byte) []TXOutput
+func (bc *Blockchain) FindUTXO() map[string]TXOutputs
 // 根据交易ID遍历所有 block 查找交易
 func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error)
 ```
@@ -120,5 +120,18 @@ func (out *TXOutput) Lock(address []byte)
 func (out *TXOutput) IsLockedWithKey(pubKeyHash []byte) bool
 // 创建 TXOutput,调用 Lock 方法签名
 func NewTXOutput(value int, address string) *TXOutput
+```
+
+
+
+## UTXO方法
+
+```go
+// 重构 UTXO set
+// 若UTXO集合存在，将其删除；然后获取所有UTXO；最后将其保存到bucket中
+func (u UTXOSet) Reindex()
+// 每挖到区块后即更新UTX删除已消费的TXO，同时将新生成的交易中的UTXO添加进来
+// 若某个交易的UTXO全部被删除，该交易也会随之被移除
+func (u UTXOSet) Update(block *Block)
 ```
 
