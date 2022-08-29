@@ -135,3 +135,42 @@ func (u UTXOSet) Reindex()
 func (u UTXOSet) Update(block *Block)
 ```
 
+
+
+
+
+## Merkle Tree
+
+### Merkle Tree结构
+
+```go
+type MerkleTree struct {
+   RootNode *MerkleNode
+}
+
+type MerkleNode struct {
+   Left  *MerkleNode
+   Right *MerkleNode
+   Data  []byte
+}
+```
+
+
+
+### Merkle Node 生成
+
+```GO
+// 生成 Merkle Tree 节点
+// 若 left，right 均为空，则创建叶子节点，data 保存交易 hash
+// 否则将 left，right 节点数据相加后保存对应 hash
+func NewMerkleNode(left, right *MerkleNode, data []byte) *MerkleNode
+```
+
+
+
+### Merkle Tree 生成
+
+```go
+// 根据 data 序列创建 MerkleTree
+func NewMerkleTree(data [][]byte) *MerkleTree
+```
