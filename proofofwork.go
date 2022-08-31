@@ -14,7 +14,6 @@ var (
 
 const targetBits = 20
 
-// ProofOfWork represents a proof-of-work
 type ProofOfWork struct {
 	block  *Block
 	target *big.Int
@@ -45,7 +44,7 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 	return data
 }
 
-// Run performs a proof-of-work
+// Run 运行 POW
 func (pow *ProofOfWork) Run() (int, []byte) {
 	var hashInt big.Int
 	var hash [32]byte
@@ -70,7 +69,7 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 	return nonce, hash[:]
 }
 
-// Validate validates block's PoW
+// Validate 验证区块的 PoW
 func (pow *ProofOfWork) Validate() bool {
 	var hashInt big.Int
 

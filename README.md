@@ -171,6 +171,135 @@ func NewMerkleNode(left, right *MerkleNode, data []byte) *MerkleNode
 ### Merkle Tree 生成
 
 ```go
-// 根据 data 序列创建 MerkleTree
+// 创建 MerkleTree
 func NewMerkleTree(data [][]byte) *MerkleTree
+```
+
+
+
+
+
+## 网络
+
+### version
+
+version 用于发现一个更长的 blockchain。当一个节点收到 version 消息后，将会检查发送节点的version.BestHeight 值是否更大（即 blockchain 更长），如果发送节点的 blockchain 更长的话，接收节点将会发送请求获取缺失的 block
+
+```go
+type version struct {
+    Version    int	// 版本
+    BestHeight int	// 本节点区块链长度
+    AddrFrom   string	// 消息发送者地址
+}
+```
+
+
+
+```go
+var nodeAddress string
+var knownNodes = []string{"localhost:3000"}
+
+func StartServer(nodeID, minerAddress string) {
+    nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
+    miningAddress = minerAddress
+    ln, err := net.Listen(protocol, nodeAddress)
+    defer ln.Close()
+
+    bc := NewBlockchain(nodeID)
+
+    if nodeAddress != knownNodes[0] {
+        sendVersion(knownNodes[0], bc)
+    }
+
+    for {
+        conn, err := ln.Accept()
+        go handleConnection(conn, bc)
+    }
+}
+```
+
+
+
+### getblocks
+
+返回当前节点所拥有的 block 的 hash 值列表，而不是所有 block 的详细信息。出于降低网络负荷的目的，若需要下载 block，可以从多个节点同时下载，没必要从单个节点下载
+
+```go
+type getblocks struct {
+   AddrFrom string
+}
+```
+
+调用 bc.GetBlockHashes() 获取区块 hash 列表，调用 sendInv 发送消息
+
+```go
+func handleGetBlocks(request []byte, bc *Blockchain)
+```
+
+### Inv
+
+inv 包含发送节点所拥有的 Block 或交易的 hash 值列表。Type 用于表示是 Block 还是交易
+
+```go
+type inv struct {
+	AddrFrom string
+	Type     string
+	Items    [][]byte
+}
+```
+
+
+
+根据消息中的数据类型，返回 block 或者交易
+
+```go
+func handleGetData(request []byte, bc *Blockchain)
+```
+
+
+
+### getdata
+
+```go
+type getdata struct {
+    AddrFrom string
+    Type     string
+    ID       []byte
+}
+```
+
+
+
+根据消息中的数据类型，返回block或者交易
+
+```go
+func handleGetData(request []byte, bc *Blockchain)
+```
+
+
+
+### block和tx
+
+```go
+type block struct {
+    AddrFrom string
+    Block    []byte
+}
+
+type tx struct {
+    AddFrom     string
+    Transaction []byte
+}
+```
+
+当收到一个新 block 时，将该 block 加入 blockchain 中。如果还有其他待下载的 block，将向相同的节点发送消息来获取 block 信息。当所有 block 均已下载，UTXO 将被重建。
+
+```go
+func handleBlock(request []byte, bc *Blockchain)
+```
+
+
+
+```go
+func handleTx(request []byte, bc *Blockchain)
 ```

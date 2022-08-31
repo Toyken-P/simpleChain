@@ -22,12 +22,12 @@ type Transaction struct {
 	Vout []TXOutput
 }
 
-// IsCoinbase checks whether the transaction is coinbase
+// IsCoinbase 判断 transaction 是否是 coinbase 类型
 func (tx Transaction) IsCoinbase() bool {
 	return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
 }
 
-// Serialize returns a serialized Transaction
+// Serialize 序列化 Transaction
 func (tx Transaction) Serialize() []byte {
 	var encoded bytes.Buffer
 
@@ -75,7 +75,7 @@ func (tx Transaction) String() string {
 	return strings.Join(lines, "\n")
 }
 
-// NewCoinbaseTX creates a new coinbase transaction
+// NewCoinbaseTX 创建 coinbase transaction
 func NewCoinbaseTX(to, data string) *Transaction {
 	if data == "" {
 		randData := make([]byte, 20)
@@ -95,7 +95,7 @@ func NewCoinbaseTX(to, data string) *Transaction {
 	return &tx
 }
 
-// NewUTXOTransaction creates a new transaction
+// NewUTXOTransaction 创建 transaction
 func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TXInput
 	var outputs []TXOutput
@@ -223,4 +223,17 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 	}
 
 	return true
+}
+
+// DeserializeTransaction 对 transaction 反序列化
+func DeserializeTransaction(data []byte) Transaction {
+	var transaction Transaction
+
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	err := decoder.Decode(&transaction)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return transaction
 }

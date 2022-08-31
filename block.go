@@ -8,7 +8,7 @@ import (
 )
 
 type Block struct {
-	Height        int64
+	Height        uint64
 	Timestamp     int64
 	Transactions  []*Transaction
 	PrevBlockHash []byte
@@ -42,7 +42,7 @@ func (b *Block) HashTransactions() []byte {
 }
 
 // NewBlock 构建 Block
-func NewBlock(transactions []*Transaction, prevBlockHash []byte, height int64) *Block {
+func NewBlock(transactions []*Transaction, prevBlockHash []byte, height uint64) *Block {
 	block := &Block{height, time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0}
 	pow := NewProofOfWork(block)
 	nonce, hash := pow.Run()
