@@ -181,9 +181,17 @@ func NewMerkleTree(data [][]byte) *MerkleTree
 
 ## 网络
 
+```go
+// server.StartServer
+nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
+miningAddress = minerAddress
+```
+
 ### version
 
-version 用于发现一个更长的 blockchain。当一个节点收到 version 消息后，将会检查发送节点的version.BestHeight 值是否更大（即 blockchain 更长），如果发送节点的 blockchain 更长的话，接收节点将会发送请求获取缺失的 block
+version 用于发现一个更长的 blockchain。
+
+接收节点将自身的 BestHeight 与消息体（即发送节点）中的 BestHeight 进行比较。若接收节点的 blockchain 更长，将发送 version 消息；若发送节点的 blockchain 更长，将发送 getblocks 消息
 
 ```go
 type version struct {
@@ -193,42 +201,51 @@ type version struct {
 }
 ```
 
+#### sendVersion
 
+// 发送本地 version 信息
 
 ```go
-var nodeAddress string
-var knownNodes = []string{"localhost:3000"}
-
-func StartServer(nodeID, minerAddress string) {
-    nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
-    miningAddress = minerAddress
-    ln, err := net.Listen(protocol, nodeAddress)
-    defer ln.Close()
-
-    bc := NewBlockchain(nodeID)
-
-    if nodeAddress != knownNodes[0] {
-        sendVersion(knownNodes[0], bc)
-    }
-
-    for {
-        conn, err := ln.Accept()
-        go handleConnection(conn, bc)
-    }
-}
+func sendVersion(addr string, bc *Blockchain)
 ```
 
+#### handleVersion
 
+// 解析 version 信息
+
+// 比较本地链长度和version信息比较
+
+// 若本地链较长，则发送本地 version 信息给发送方
+
+// 若发送方链较长，则调用 sendGetBlocks 发送 GetBlocks  请求以更新本地链
+
+// 判断发送方地址是否已知，若是新地址，则更新到 knownNodes
+
+```go
+func handleVersion(request []byte, bc *Blockchain)
+```
 
 ### getblocks
 
-返回当前节点所拥有的 block 的 hash 值列表，而不是所有 block 的详细信息。出于降低网络负荷的目的，若需要下载 block，可以从多个节点同时下载，没必要从单个节点下载
+返回当前节点所拥有的 block 的 hash 值列表，而不是所有 block 的详细信息。
+
+该消息处理函数通过发送 inv 消息返回所有 block 的 hash 值
 
 ```go
 type getblocks struct {
    AddrFrom string
 }
 ```
+
+#### sendGetBlocks
+
+// 发送 getblocks 请求
+
+```go
+func sendGetBlocks(address string)
+```
+
+#### handleGetBlocks
 
 调用 bc.GetBlockHashes() 获取区块 hash 列表，调用 sendInv 发送消息
 
@@ -248,7 +265,25 @@ type inv struct {
 }
 ```
 
+#### sendInv
 
+发送 inv 请求(blocks / tx)
+
+```go
+func sendInv(address, kind string, items [][]byte) 
+```
+
+#### handleInv
+
+// 解析请求，判断消息类型
+
+// 若为 block，调用 sendGetData 发送最新区块 hash
+
+// 更新 blocksInTransit
+
+```go
+func handleInv(request []byte, bc *Blockchain)
+```
 
 根据消息中的数据类型，返回 block 或者交易
 
@@ -260,6 +295,8 @@ func handleGetData(request []byte, bc *Blockchain)
 
 ### getdata
 
+getdata 消息用于获取某个 block 或交易信息
+
 ```go
 type getdata struct {
     AddrFrom string
@@ -268,7 +305,11 @@ type getdata struct {
 }
 ```
 
+#### sendGetData
 
+```go
+func sendGetData(address, kind string, id []byte)
+```
 
 根据消息中的数据类型，返回block或者交易
 
@@ -279,6 +320,8 @@ func handleGetData(request []byte, bc *Blockchain)
 
 
 ### block和tx
+
+block 和 tx 表示实际的 block 或交易信息
 
 ```go
 type block struct {

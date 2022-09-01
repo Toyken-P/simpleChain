@@ -5,9 +5,12 @@ import (
 	"crypto/elliptic"
 	"encoding/gob"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 )
+
+const walletFile = "wallet_%s.dat"
 
 // Wallets 存储 wallet 集合
 type Wallets struct {
@@ -15,11 +18,11 @@ type Wallets struct {
 }
 
 // NewWallets 创建 Wallets 钱包集合并读取本地文件获取钱包信息
-func NewWallets() (*Wallets, error) {
+func NewWallets(nodeID string) (*Wallets, error) {
 	wallets := Wallets{}
 	wallets.Wallets = make(map[string]*Wallet)
 
-	err := wallets.LoadFromFile()
+	err := wallets.LoadFromFile(nodeID)
 
 	return &wallets, err
 }
@@ -51,12 +54,13 @@ func (ws Wallets) GetWallet(address string) Wallet {
 }
 
 // LoadFromFile 从文件中载入 wallets
-func (ws *Wallets) LoadFromFile() error {
+func (ws *Wallets) LoadFromFile(nodeID string) error {
+	walletFile := fmt.Sprintf(walletFile, nodeID)
 	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
 		return err
 	}
 
-	fileContent, err := os.ReadFile(walletFile)
+	fileContent, err := ioutil.ReadFile(walletFile)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -75,8 +79,9 @@ func (ws *Wallets) LoadFromFile() error {
 }
 
 // SaveToFile 把 wallets 存入文件
-func (ws Wallets) SaveToFile() {
+func (ws Wallets) SaveToFile(nodeID string) {
 	var content bytes.Buffer
+	walletFile := fmt.Sprintf(walletFile, nodeID)
 
 	gob.Register(elliptic.P256())
 
@@ -86,7 +91,7 @@ func (ws Wallets) SaveToFile() {
 		log.Panic(err)
 	}
 
-	err = os.WriteFile(walletFile, content.Bytes(), 0644)
+	err = ioutil.WriteFile(walletFile, content.Bytes(), 0644)
 	if err != nil {
 		log.Panic(err)
 	}

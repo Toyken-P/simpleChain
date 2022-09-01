@@ -82,23 +82,10 @@ func bytesToCommand(bytes []byte) string {
 	return fmt.Sprintf("%s", command)
 }
 
-func extractCommand(request []byte) []byte {
-	return request[:commandLength]
-}
-
 func requestBlocks() {
 	for _, node := range knownNodes {
 		sendGetBlocks(node)
 	}
-}
-
-func sendAddr(address string) {
-	nodes := addr{knownNodes}
-	nodes.AddrList = append(nodes.AddrList, nodeAddress)
-	payload := gobEncode(nodes)
-	request := append(commandToBytes("addr"), payload...)
-
-	sendData(address, request)
 }
 
 func sendBlock(addr string, b *Block) {
@@ -168,8 +155,8 @@ func sendVersion(addr string, bc *Blockchain) {
 	bestHeight := bc.GetBestHeight()
 	payload := gobEncode(version{nodeVersion, bestHeight, nodeAddress})
 
-	// 消息由字节数组构成：前12个字节表示命令名（此时是“versionNum”），接着是 gob 编码的消息体
-	request := append(commandToBytes("versionNum"), payload...)
+	// 消息由字节数组构成：前12个字节表示命令名（此时是“versionInfo”），接着是 gob 编码的消息体
+	request := append(commandToBytes("versionInfo"), payload...)
 
 	sendData(addr, request)
 }
@@ -415,7 +402,7 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 		handleGetData(request, bc)
 	case "tx":
 		handleTx(request, bc)
-	case "versionNum":
+	case "versionInfo":
 		handleVersion(request, bc)
 	default:
 		fmt.Println("Unknown command!")

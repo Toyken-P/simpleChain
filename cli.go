@@ -44,16 +44,16 @@ func (cli *CLI) getBalance(address, nodeID string) {
 	fmt.Printf("Balance of '%s': %d\n", address, balance)
 }
 
-func (cli *CLI) createWallet() {
-	wallets, _ := NewWallets()
+func (cli *CLI) createWallet(nodeID string) {
+	wallets, _ := NewWallets(nodeID)
 	address := wallets.CreateWallet()
-	wallets.SaveToFile()
+	wallets.SaveToFile(nodeID)
 
 	fmt.Printf("Your new address: %s\n", address)
 }
 
-func (cli *CLI) listAddress() {
-	wallets, err := NewWallets()
+func (cli *CLI) listAddress(nodeID string) {
+	wallets, err := NewWallets(nodeID)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -126,14 +126,24 @@ func (cli *CLI) send(from, to string, amount int, nodeID string, mineNow bool) {
 	UTXOSet := UTXOSet{bc}
 	defer bc.db.Close()
 
-	// 当矿工挖到一个新的block时，除了一个通用交易外，还会包含一个coinbase交易。
-	// Coinbase的TXO中包括矿工的公钥
-	tx := NewUTXOTransaction(from, to, amount, &UTXOSet)
-	cbTx := NewCoinbaseTX(from, "")
-	txs := []*Transaction{cbTx, tx}
+	wallets, err := NewWallets(nodeID)
+	if err != nil {
+		log.Panic(err)
+	}
+	wallet := wallets.GetWallet(from)
 
-	newBlock := bc.MineBlock(txs)
-	UTXOSet.Update(newBlock)
+	tx := NewUTXOTransaction(&wallet, to, amount, &UTXOSet)
+
+	if mineNow {
+		cbTx := NewCoinbaseTX(from, "")
+		txs := []*Transaction{cbTx, tx}
+
+		newBlock := bc.MineBlock(txs)
+		UTXOSet.Update(newBlock)
+	} else {
+		sendTx(knownNodes[0], tx)
+	}
+
 	fmt.Println("Success!")
 }
 
@@ -149,11 +159,11 @@ func (cli *CLI) startNode(nodeID, minerAddress string) {
 	StartServer(nodeID, minerAddress)
 }
 
-// Run parses command line arguments and processes commands
 func (cli *CLI) Run() {
 	cli.validateArgs()
 
-	nodeID := os.Getenv("NODE_ID")
+	// nodeID := os.Getenv("NODE_ID")
+	nodeID := "3000"
 	if nodeID == "" {
 		fmt.Printf("NODE_ID env. var is not set!")
 		os.Exit(1)
@@ -243,11 +253,11 @@ func (cli *CLI) Run() {
 	}
 
 	if createWalletCmd.Parsed() {
-		cli.createWallet()
+		cli.createWallet(nodeID)
 	}
 
 	if listAddressCmd.Parsed() {
-		cli.listAddress()
+		cli.listAddress(nodeID)
 	}
 
 	if reindexUTXOCmd.Parsed() {
