@@ -162,8 +162,7 @@ func (cli *CLI) startNode(nodeID, minerAddress string) {
 func (cli *CLI) Run() {
 	cli.validateArgs()
 
-	// nodeID := os.Getenv("NODE_ID")
-	nodeID := "3000"
+	nodeID := os.Getenv("NODE_ID")
 	if nodeID == "" {
 		fmt.Printf("NODE_ID env. var is not set!")
 		os.Exit(1)
