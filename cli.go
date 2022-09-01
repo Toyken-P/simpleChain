@@ -52,7 +52,8 @@ func (cli *CLI) createWallet(nodeID string) {
 	fmt.Printf("Your new address: %s\n", address)
 }
 
-func (cli *CLI) listAddress(nodeID string) {
+func (cli *CLI) listAddresses(nodeID string) {
+
 	wallets, err := NewWallets(nodeID)
 	if err != nil {
 		log.Panic(err)
@@ -256,7 +257,7 @@ func (cli *CLI) Run() {
 	}
 
 	if listAddressCmd.Parsed() {
-		cli.listAddress(nodeID)
+		cli.listAddresses(nodeID)
 	}
 
 	if reindexUTXOCmd.Parsed() {
