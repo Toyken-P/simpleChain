@@ -60,7 +60,8 @@ func (bc *Blockchain) AddBlock(block *Block) {
 // MineBlock 为提供的 transactions 挖掘新区块
 func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	var lastHash []byte
-	var block *Block
+	var lastHeight uint64
+
 	for _, tx := range transactions {
 		if bc.VerifyTransaction(tx) != true {
 			log.Panic("ERROR: Invalid transaction")
@@ -70,8 +71,11 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		lastHash = b.Get([]byte("l"))
-		blockBytes := b.Get(lastHash)
-		block = DeserializeBlock(blockBytes)
+
+		blockData := b.Get(lastHash)
+		block := DeserializeBlock(blockData)
+
+		lastHeight = block.Height
 
 		return nil
 	})
@@ -79,7 +83,7 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 		log.Panic(err)
 	}
 
-	newBlock := NewBlock(transactions, lastHash, block.Height+1)
+	newBlock := NewBlock(transactions, lastHash, lastHeight+1)
 
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
