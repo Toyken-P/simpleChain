@@ -6,12 +6,13 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"math/big"
+	"strings"
+
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
 	"log"
-	"math/big"
-	"strings"
 )
 
 const subsidy = 10
@@ -27,7 +28,6 @@ func (tx Transaction) IsCoinbase() bool {
 	return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
 }
 
-// Serialize 序列化 Transaction
 func (tx Transaction) Serialize() []byte {
 	var encoded bytes.Buffer
 
@@ -50,6 +50,39 @@ func (tx *Transaction) Hash() []byte {
 	hash = sha256.Sum256(txCopy.Serialize())
 
 	return hash[:]
+}
+
+// Sign 对 Transaction 中的每个TXI进行单独地签名
+func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
+	// Coinbase没有真实TXI，不签名
+	if tx.IsCoinbase() {
+		return
+	}
+
+	for _, vin := range tx.Vin {
+		if prevTXs[hex.EncodeToString(vin.Txid)].ID == nil {
+			log.Panic("ERROR: Previous transaction is not correct")
+		}
+	}
+
+	txCopy := tx.TrimmedCopy()
+
+	for inID, vin := range txCopy.Vin {
+		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
+		txCopy.Vin[inID].Signature = nil
+		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
+
+		dataToSign := fmt.Sprintf("%x\n", txCopy)
+
+		r, s, err := ecdsa.Sign(rand.Reader, &privKey, []byte(dataToSign))
+		if err != nil {
+			log.Panic(err)
+		}
+		signature := append(r.Bytes(), s.Bytes()...)
+
+		tx.Vin[inID].Signature = signature
+		txCopy.Vin[inID].PubKey = nil
+	}
 }
 
 func (tx Transaction) String() string {
@@ -75,65 +108,6 @@ func (tx Transaction) String() string {
 	return strings.Join(lines, "\n")
 }
 
-// NewCoinbaseTX 创建 coinbase transaction
-func NewCoinbaseTX(to, data string) *Transaction {
-	if data == "" {
-		randData := make([]byte, 20)
-		_, err := rand.Read(randData)
-		if err != nil {
-			log.Panic(err)
-		}
-
-		data = fmt.Sprintf("%x", randData)
-	}
-
-	txin := TXInput{[]byte{}, -1, nil, []byte(data)}
-	txout := NewTXOutput(subsidy, to)
-	tx := Transaction{nil, []TXInput{txin}, []TXOutput{*txout}}
-	tx.ID = tx.Hash()
-
-	return &tx
-}
-
-// NewUTXOTransaction 创建 transaction
-func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
-	var inputs []TXInput
-	var outputs []TXOutput
-
-	pubKeyHash := HashPubKey(wallet.PublicKey)
-	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
-
-	if acc < amount {
-		log.Panic("ERROR: Not enough funds")
-	}
-
-	// Build a list of inputs
-	for txid, outs := range validOutputs {
-		txID, err := hex.DecodeString(txid)
-		if err != nil {
-			log.Panic(err)
-		}
-
-		for _, out := range outs {
-			input := TXInput{txID, out, nil, wallet.PublicKey}
-			inputs = append(inputs, input)
-		}
-	}
-
-	// Build a list of outputs
-	from := fmt.Sprintf("%s", wallet.GetAddress())
-	outputs = append(outputs, *NewTXOutput(amount, to))
-	if acc > amount {
-		outputs = append(outputs, *NewTXOutput(acc-amount, from)) // a change
-	}
-
-	tx := Transaction{nil, inputs, outputs}
-	tx.ID = tx.Hash()
-	UTXOSet.Blockchain.SignTransaction(&tx, wallet.PrivateKey)
-
-	return &tx
-}
-
 // TrimmedCopy 复制原始交易中所有的TXI和TXO，但TXI的 Signature 和 PubKey 被设置 为nil
 func (tx *Transaction) TrimmedCopy() Transaction {
 	var inputs []TXInput
@@ -150,40 +124,6 @@ func (tx *Transaction) TrimmedCopy() Transaction {
 	txCopy := Transaction{tx.ID, inputs, outputs}
 
 	return txCopy
-}
-
-// Sign 对 Transaction 中的每个TXI进行单独地签名
-func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
-	// Coinbase没有真实TXI，不签名
-	if tx.IsCoinbase() {
-		return
-	}
-
-	for _, vin := range tx.Vin {
-		if prevTXs[hex.EncodeToString(vin.Txid)].ID == nil {
-			log.Panic("ERROR: Previous transaction is not correct")
-		}
-	}
-
-	txCopy := tx.TrimmedCopy()
-
-	// 对于每个TXI，再次将Signature字段设置为nil，将PubKey设置为其所引用的TXO的PubKeyHash
-	for inID, vin := range txCopy.Vin {
-		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
-		txCopy.Vin[inID].Signature = nil
-		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
-
-		dataToSign := fmt.Sprintf("%x\n", txCopy)
-
-		r, s, err := ecdsa.Sign(rand.Reader, &privKey, []byte(dataToSign))
-		if err != nil {
-			log.Panic(err)
-		}
-		signature := append(r.Bytes(), s.Bytes()...)
-
-		tx.Vin[inID].Signature = signature
-		txCopy.Vin[inID].PubKey = nil
-	}
 }
 
 // Verify 验证 Transaction inputs 的签名
@@ -229,7 +169,65 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 	return true
 }
 
-// DeserializeTransaction 对 transaction 反序列化
+// NewUTXOTransaction 创建 transaction
+func NewCoinbaseTX(to, data string) *Transaction {
+	if data == "" {
+		randData := make([]byte, 20)
+		_, err := rand.Read(randData)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		data = fmt.Sprintf("%x", randData)
+	}
+
+	txin := TXInput{[]byte{}, -1, nil, []byte(data)}
+	txout := NewTXOutput(subsidy, to)
+	tx := Transaction{nil, []TXInput{txin}, []TXOutput{*txout}}
+	tx.ID = tx.Hash()
+
+	return &tx
+}
+
+// NewUTXOTransaction creates a new transaction
+func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
+	var inputs []TXInput
+	var outputs []TXOutput
+
+	pubKeyHash := HashPubKey(wallet.PublicKey)
+	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
+
+	if acc < amount {
+		log.Panic("ERROR: Not enough funds")
+	}
+
+	// Build a list of inputs
+	for txid, outs := range validOutputs {
+		txID, err := hex.DecodeString(txid)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		for _, out := range outs {
+			input := TXInput{txID, out, nil, wallet.PublicKey}
+			inputs = append(inputs, input)
+		}
+	}
+
+	// Build a list of outputs
+	from := fmt.Sprintf("%s", wallet.GetAddress())
+	outputs = append(outputs, *NewTXOutput(amount, to))
+	if acc > amount {
+		outputs = append(outputs, *NewTXOutput(acc-amount, from)) // a change
+	}
+
+	tx := Transaction{nil, inputs, outputs}
+	tx.ID = tx.Hash()
+	UTXOSet.Blockchain.SignTransaction(&tx, wallet.PrivateKey)
+
+	return &tx
+}
+
 func DeserializeTransaction(data []byte) Transaction {
 	var transaction Transaction
 
