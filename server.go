@@ -52,7 +52,7 @@ type tx struct {
 	Transaction []byte
 }
 
-type version struct {
+type verzion struct {
 	Version    int
 	BestHeight uint64
 	AddrFrom   string
@@ -153,7 +153,7 @@ func sendTx(addr string, tnx *Transaction) {
 
 func sendVersion(addr string, bc *Blockchain) {
 	bestHeight := bc.GetBestHeight()
-	payload := gobEncode(version{nodeVersion, bestHeight, nodeAddress})
+	payload := gobEncode(verzion{nodeVersion, bestHeight, nodeAddress})
 
 	// 消息由字节数组构成：前12个字节表示命令名（此时是“versionInfo”），接着是 gob 编码的消息体
 	request := append(commandToBytes("versionInfo"), payload...)
@@ -355,7 +355,7 @@ func handleTx(request []byte, bc *Blockchain) {
 
 func handleVersion(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
-	var payload version
+	var payload verzion
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
