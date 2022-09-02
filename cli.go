@@ -172,10 +172,10 @@ func (cli *CLI) Run() {
 	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
-	listAddressCmd := flag.NewFlagSet("listAddress", flag.ExitOnError)
-	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
+	listAddressesCmd := flag.NewFlagSet("listaddresses", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 	reindexUTXOCmd := flag.NewFlagSet("reindexutxo", flag.ExitOnError)
+	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	startNodeCmd := flag.NewFlagSet("startnode", flag.ExitOnError)
 
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
@@ -197,28 +197,28 @@ func (cli *CLI) Run() {
 		if err != nil {
 			log.Panic(err)
 		}
-	case "printchain":
-		err := printChainCmd.Parse(os.Args[2:])
-		if err != nil {
-			log.Panic(err)
-		}
-	case "send":
-		err := sendCmd.Parse(os.Args[2:])
-		if err != nil {
-			log.Panic(err)
-		}
 	case "createwallet":
 		err := createWalletCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
-	case "listAddress":
-		err := listAddressCmd.Parse(os.Args[2:])
+	case "listaddresses":
+		err := listAddressesCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "printchain":
+		err := printChainCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
 	case "reindexutxo":
 		err := reindexUTXOCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "send":
+		err := sendCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -248,16 +248,16 @@ func (cli *CLI) Run() {
 		cli.createBlockchain(*createBlockchainAddress, nodeID)
 	}
 
-	if printChainCmd.Parsed() {
-		cli.printChain(nodeID)
-	}
-
 	if createWalletCmd.Parsed() {
 		cli.createWallet(nodeID)
 	}
 
-	if listAddressCmd.Parsed() {
+	if listAddressesCmd.Parsed() {
 		cli.listAddresses(nodeID)
+	}
+
+	if printChainCmd.Parsed() {
+		cli.printChain(nodeID)
 	}
 
 	if reindexUTXOCmd.Parsed() {
@@ -274,11 +274,11 @@ func (cli *CLI) Run() {
 	}
 
 	if startNodeCmd.Parsed() {
+		nodeID := os.Getenv("NODE_ID")
 		if nodeID == "" {
 			startNodeCmd.Usage()
 			os.Exit(1)
 		}
-
 		cli.startNode(nodeID, *startNodeMiner)
 	}
 }
