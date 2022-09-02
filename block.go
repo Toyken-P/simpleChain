@@ -55,7 +55,7 @@ func NewBlock(transactions []*Transaction, prevBlockHash []byte, height int) *Bl
 
 // NewGenesisBlock 生成 genesis Block
 func NewGenesisBlock(coinbase *Transaction) *Block {
-	return NewBlock([]*Transaction{coinbase}, []byte{}, 1)
+	return NewBlock([]*Transaction{coinbase}, []byte{}, 0)
 }
 
 // DeserializeBlock block 反序列化
