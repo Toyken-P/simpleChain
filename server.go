@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 )
@@ -82,10 +83,23 @@ func bytesToCommand(bytes []byte) string {
 	return fmt.Sprintf("%s", command)
 }
 
+func extractCommand(request []byte) []byte {
+	return request[:commandLength]
+}
+
 func requestBlocks() {
 	for _, node := range knownNodes {
 		sendGetBlocks(node)
 	}
+}
+
+func sendAddr(address string) {
+	nodes := addr{knownNodes}
+	nodes.AddrList = append(nodes.AddrList, nodeAddress)
+	payload := gobEncode(nodes)
+	request := append(commandToBytes("addr"), payload...)
+
+	sendData(address, request)
 }
 
 func sendBlock(addr string, b *Block) {
@@ -102,7 +116,6 @@ func sendData(addr string, data []byte) {
 		fmt.Printf("%s is not available\n", addr)
 		var updatedNodes []string
 
-		// 更新节点
 		for _, node := range knownNodes {
 			if node != addr {
 				updatedNodes = append(updatedNodes, node)
@@ -155,8 +168,8 @@ func sendVersion(addr string, bc *Blockchain) {
 	bestHeight := bc.GetBestHeight()
 	payload := gobEncode(verzion{nodeVersion, bestHeight, nodeAddress})
 
-	// 消息由字节数组构成：前12个字节表示命令名（此时是“versionInfo”），接着是 gob 编码的消息体
-	request := append(commandToBytes("versionInfo"), payload...)
+	// 消息由字节数组构成：前12个字节表示命令名（此时是“version”），接着是 gob 编码的消息体
+	request := append(commandToBytes("version"), payload...)
 
 	sendData(addr, request)
 }
@@ -244,6 +257,7 @@ func handleInv(request []byte, bc *Blockchain) {
 	}
 }
 
+// 根据消息中的数据类型，返回 block 或者交易
 func handleGetBlocks(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload getblocks
@@ -259,7 +273,6 @@ func handleGetBlocks(request []byte, bc *Blockchain) {
 	sendInv(payload.AddrFrom, "block", blocks)
 }
 
-// 根据消息中的数据类型，返回 block 或者交易
 func handleGetData(request []byte, bc *Blockchain) {
 	var buff bytes.Buffer
 	var payload getdata
@@ -285,6 +298,7 @@ func handleGetData(request []byte, bc *Blockchain) {
 		tx := mempool[txID]
 
 		sendTx(payload.AddrFrom, &tx)
+		// delete(mempool, txID)
 	}
 }
 
@@ -381,11 +395,10 @@ func handleVersion(request []byte, bc *Blockchain) {
 
 // handleConnection 根据读取的消息调用不同的消息处理函数
 func handleConnection(conn net.Conn, bc *Blockchain) {
-	request, err := io.ReadAll(conn)
+	request, err := ioutil.ReadAll(conn)
 	if err != nil {
 		log.Panic(err)
 	}
-	// 解析命令
 	command := bytesToCommand(request[:commandLength])
 	fmt.Printf("Received %s command\n", command)
 
@@ -402,7 +415,7 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 		handleGetData(request, bc)
 	case "tx":
 		handleTx(request, bc)
-	case "versionInfo":
+	case "version":
 		handleVersion(request, bc)
 	default:
 		fmt.Println("Unknown command!")
@@ -411,7 +424,7 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 	conn.Close()
 }
 
-// StartServer 启动一个节点
+// StartServer 启动节点
 func StartServer(nodeID, minerAddress string) {
 	nodeAddress = fmt.Sprintf("localhost:%s", nodeID)
 	miningAddress = minerAddress
