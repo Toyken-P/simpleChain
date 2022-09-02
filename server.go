@@ -54,7 +54,7 @@ type tx struct {
 
 type verzion struct {
 	Version    int
-	BestHeight uint64
+	BestHeight int
 	AddrFrom   string
 }
 

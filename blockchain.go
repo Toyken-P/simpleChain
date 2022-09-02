@@ -60,7 +60,7 @@ func (bc *Blockchain) AddBlock(block *Block) {
 // MineBlock 为提供的 transactions 挖掘新区块
 func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	var lastHash []byte
-	var lastHeight uint64
+	var lastHeight int
 
 	for _, tx := range transactions {
 		if bc.VerifyTransaction(tx) != true {
@@ -330,7 +330,7 @@ func CreateBlockchain(address string, nodeID string) *Blockchain {
 }
 
 // GetBestHeight 返回最新 block 的高度
-func (bc *Blockchain) GetBestHeight() uint64 {
+func (bc *Blockchain) GetBestHeight() int {
 	var lastBlock Block
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
